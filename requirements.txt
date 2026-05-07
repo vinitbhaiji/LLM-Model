@@ -2,3 +2,9 @@ fastapi
 uvicorn
 python-dotenv
 openai
+uvicorn app.main:app --reload
+python-multipart
+pypdf
+python-docx
+sentence-transformers
+numpy
