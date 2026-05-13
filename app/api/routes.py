@@ -28,10 +28,22 @@ def ask_question(request: QueryRequest):
 
         chunks = retrieve_relevant_chunks(request.question)
 
+        if not chunks:
+            
+            return {
+                "answer": "No relevant information found in documents"
+            }
+
         context = "\n\n".join(chunks)
 
         prompt = f"""
-        Answer the question using the context below.
+        You are an AI assistant for answering questions based ONLY on provided context.
+        
+        Rules:
+        - Only use the context below
+        - If answer is not in context, say "I don't know based on provided data"
+        - Do not make up answers
+        - Be concise and precise
 
         Context:
         {context}

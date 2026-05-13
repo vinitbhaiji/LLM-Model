@@ -12,7 +12,7 @@ def cosine_similarity(a, b):
     return np.dot(a, b) / (np.linalg.norm(a) * np.linalg.norm(b))
 
 
-def retrieve_relevant_chunks(query, top_k=3):
+def retrieve_relevant_chunks(query, top_k=3, threshold=0.3):
 
     query_embedding = generate_embedding(query)
 
@@ -27,14 +27,9 @@ def retrieve_relevant_chunks(query, top_k=3):
             item["embedding"]
         )
 
-        scored_chunks.append(
-            (score, item["text"])
-        )
+        if score > threshold:
+            scored_chunks.append((score, item["text"]))
 
     scored_chunks.sort(reverse=True, key=lambda x: x[0])
 
-    top_chunks = [
-        chunk for _, chunk in scored_chunks[:top_k]
-    ]
-
-    return top_chunks
+    return [chunk for _, chunk in scored_chunks[:top_k]]
