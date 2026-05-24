@@ -1,34 +1,41 @@
-import json
-import os
+import chromadb
 
-VECTOR_DB_PATH = "data/vector_store.json"
+client = chromadb.PersistentClient(
+    path="data/chroma_db"
+)
 
-
-def load_db():
-
-    if not os.path.exists(VECTOR_DB_PATH):
-
-        return []
-
-    with open(VECTOR_DB_PATH, "r") as f:
-
-        return json.load(f)
-
-
-def save_db(data):
-
-    with open(VECTOR_DB_PATH, "w") as f:
-
-        json.dump(data, f)
+collection = client.get_or_create_collection(
+    name="documents"
+)
 
 
 def add_embedding(chunk, embedding):
 
-    db = load_db()
+    collection.add(
+        documents=[chunk],
+        embeddings=[embedding],
+        ids=[str(hash(chunk))]
+    )
 
-    db.append({
-        "text": chunk,
-        "embedding": embedding
-    })
 
-    save_db(db)
+def search_embeddings(query_embedding, top_k=2):
+
+    results = collection.query(
+        query_embeddings=[query_embedding],
+        n_results=top_k
+    )
+
+    return results["documents"][0]
+
+def add_embeddings_batch(chunks, embeddings):
+
+    ids = [
+        str(hash(chunk))
+        for chunk in chunks
+    ]
+
+    collection.add(
+        documents=chunks,
+        embeddings=embeddings,
+        ids=ids
+    )
