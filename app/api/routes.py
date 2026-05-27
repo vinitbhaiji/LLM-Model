@@ -17,22 +17,51 @@ from app.services.cache_service import (
 )
 from fastapi.responses import StreamingResponse
 from app.services.llm_service import stream_response
+from app.services.memory_service import (
+    get_or_create_session,
+    add_message,
+    get_conversation_history
+)
 
 router = APIRouter()
 
 
 class QueryRequest(BaseModel):
-    question: str
 
+    question: str
+    session_id: str | None = None
+
+def build_prompt(
+    session_id,
+    question,
+    context
+):
+
+    history = get_conversation_history(
+        session_id
+    )
+
+    return f"""
+    History:
+    {history}
+    
+    Context:
+    {context[:500]}
+    
+    Question:
+    {question}
+    
+    Answer briefly and precisely.
+    """
 
 @router.post("/ask")
 def ask_question(request: QueryRequest):
 
-    logger.info(
-        f"Received question: {request.question}"
-    )
-
     try:
+
+        session_id = get_or_create_session(
+            request.session_id
+        )
 
         cached_answer = get_cached_response(
             request.question
@@ -40,10 +69,8 @@ def ask_question(request: QueryRequest):
 
         if cached_answer:
 
-            logger.info("Cache hit")
-
             return {
-                "question": request.question,
+                "session_id": session_id,
                 "answer": cached_answer,
                 "source": "cache"
             }
@@ -52,55 +79,42 @@ def ask_question(request: QueryRequest):
             request.question
         )
 
-        if not chunks:
-
-            return {
-                "answer": "No relevant information found"
-            }
-
         context = "\n".join(
-            chunk[:300] for chunk in chunks
+            chunk[:150] for chunk in chunks
         )
 
-        prompt = f"""
-        You are an AI assistant for answering questions
-        based ONLY on provided context.
+        add_message(
+            session_id,
+            "user",
+            request.question
+        )
 
-        Rules:
-        - Only use provided context
-        - If answer is not found, say:
-          'I don't know based on provided data'
-        - Be concise
-
-        Context:
-        {context}
-
-        Question:
-        {request.question}
-        """
+        prompt = build_prompt(
+            session_id,
+            request.question,
+            context
+        )
 
         answer = generate_response(prompt)
+
+        add_message(
+            session_id,
+            "assistant",
+            answer
+        )
 
         cache_response(
             request.question,
             answer
         )
 
-        logger.info(
-            "RAG response generated"
-        )
-
         return {
-            "question": request.question,
+            "session_id": session_id,
             "answer": answer,
             "source": "rag"
         }
 
     except Exception as e:
-
-        logger.error(
-            f"Error: {str(e)}"
-        )
 
         return {
             "error": str(e)
@@ -143,57 +157,41 @@ def upload_document(file: UploadFile = File(...)):
 @router.post("/stream")
 def stream_answer(request: QueryRequest):
 
-    logger.info(
-        f"Streaming question: {request.question}"
-    )
-
     try:
 
-        cached_answer = get_cached_response(
-            request.question
+        session_id = get_or_create_session(
+            request.session_id
         )
-
-        if cached_answer:
-
-            return {
-                "answer": cached_answer,
-                "source": "cache"
-            }
 
         chunks = retrieve_relevant_chunks(
             request.question
         )
 
-        if not chunks:
-
-            return {
-                "answer": "No relevant information found"
-            }
-
         context = "\n".join(
-            chunk[:300] for chunk in chunks
+            chunk[:150] for chunk in chunks
         )
 
-        prompt = f"""
-        You are an AI assistant.
+        add_message(
+            session_id,
+            "user",
+            request.question
+        )
 
-        Use ONLY the provided context.
-
-        Context:
-        {context}
-
-        Question:
-        {request.question}
-        """
+        prompt = build_prompt(
+            session_id,
+            request.question,
+            context
+        )
 
         return StreamingResponse(
             stream_response(prompt),
-            media_type="text/plain"
+            media_type="text/plain",
+            headers={
+                "X-Session-ID": session_id
+            }
         )
 
     except Exception as e:
-
-        logger.error(f"Streaming error: {str(e)}")
 
         return {
             "error": str(e)

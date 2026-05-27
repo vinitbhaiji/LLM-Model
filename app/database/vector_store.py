@@ -18,7 +18,7 @@ def add_embedding(chunk, embedding):
     )
 
 
-def search_embeddings(query_embedding, top_k=2):
+def search_embeddings(query_embedding, top_k=1):
 
     results = collection.query(
         query_embeddings=[query_embedding],

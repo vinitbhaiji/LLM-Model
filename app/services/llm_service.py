@@ -19,7 +19,7 @@ def generate_response(prompt):
         response = requests.post(
             OLLAMA_URL,
             json=payload,
-            timeout=60
+            timeout=120
         )
 
         data = response.json()
